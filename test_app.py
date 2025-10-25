@@ -10,8 +10,7 @@ def client():
         yield client
 
 def test_upscale_route(client):
-    """Тестируем эндпоинт загрузки изображения и получения task_id.
-    Важно: файл 'lama_300px.png' должен существовать в директории с тестами."""
+    """Тестируем эндпоинт загрузки изображения и получения task_id."""
 
     try:
         with open('lama_300px.png', 'rb') as img: # Открываем тестовый файл
@@ -24,7 +23,7 @@ def test_upscale_route(client):
         json_data = response.get_json() #Получаем json из ответа
         assert 'task_id' in json_data #Проверяем наличие task_id
     except FileNotFoundError:
-        pytest.fail("Не найден файл lama_300px.png.  Убедитесь, что он находится в той же директории, что и тест.")
+        pytest.fail("Не найден файл")
 
 def test_get_task_status(client):
     """Тестируем получение статуса задачи по task_id. Требует предварительной отправки файла."""
