@@ -1,7 +1,25 @@
-version: '3.1'
-
+version: '3.8'
 services:
   redis:
-    image: redis
+    image: redis:alpine
     ports:
-      - '6379:6379'
+      - "6379:6379"
+
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    depends_on:
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+
+  worker:
+    build: .
+    command: celery -A app.celery_app worker --loglevel=info
+    depends_on:
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
