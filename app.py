@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, request, jsonify, send_file
 from celery import Celery
 import io
@@ -6,6 +8,12 @@ import redis
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'files'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
+
+@app.errorhandler(413)
+def toolarge(e):
+    return jsonify({"error": "File is too large"}), 413
+
 celery_app = Celery(
     app.name,
     backend='redis://localhost:6379/0',
@@ -13,9 +21,9 @@ celery_app = Celery(
 )
 celery_app.conf.update(app.config)
 
-r = redis.Redis(host='localhost', port=6379, db=1)
+redis_host = os.getenv('REDIS_HOST', 'localhost')
+r = redis.Redis(host=redis_host, port=6379, db=1)
 
-tasks = {}   # task_id: {'status': 'pending', 'file': '...' }
 
 @celery_app.task(bind=True)
 def upscale_image(self, image_data):
@@ -24,10 +32,6 @@ def upscale_image(self, image_data):
     r.setex(f'image:{task_id}', 3600, processed_image)  # Сохраняем в Redis
     return "Done"
 
-def get_processed_file(task_id):
-    image_data = r.get(f'image:{task_id}') # Получаем из Redis
-    if image_data:
-        return send_file(io.BytesIO(image_data), mimetype='image/png')
 
 @app.route('/upscale', methods=['POST'])
 def upscale_route():
@@ -53,7 +57,8 @@ def get_task_status(task_id):
     if task.state == 'FAILURE':
         return jsonify({"status": "failed"}), 200
     elif task.state == 'SUCCESS':
-        return jsonify({"status": "completed", "file": f'/processed/{task_id}'}), 200
+        filename = r.get(f'task:{task_id}:filename')
+        return jsonify({"status": "completed", "file": f'/processed/{filename}'}), 200
     else:
         return jsonify({"status": "pending"}), 200
 

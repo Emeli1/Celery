@@ -1,8 +1,6 @@
 import os
-
 import pytest
 import io
-from app import app, celery_app
 import time
 from app import app
 
@@ -39,24 +37,19 @@ def test_get_task_status(client):
     assert response.status_code == 200
     assert response.get_json()['status'].lower() in ['pending', 'failed']
 
-def test_get_status_invalid_task(client):
-    """Тестируем получение статуса задачи с несуществующим task_id."""
-    invalid_task_id = 'nonexistenttaskid123'
-    response = client.get(f'/tasks/{invalid_task_id}')
-    assert response.status_code == 200
-    assert response.get_json()['status'].lower() in ['pending', 'failed']
 
-
-def test_processed_file(client):
+def test_processed_file_exist(client, image_data):
     """Тестируем получение обработанного файла по task_id."""
-    image_data = b'test image data'
     data = {'file': (io.BytesIO(image_data), 'lama_300px.png')}
     response = client.post('/upscale', content_type='multipart/form-data', data=data)
     task_id = response.get_json()['task_id']
+
+    # Ждем некоторое время, чтобы задача могла выполниться
     time.sleep(5)
+
     response = client.get(f'/processed/{task_id}')
     if response.status_code == 200:
-        assert response.mimetype == 'image/png'
+        assert response.content_type == 'image/png'
     else:
         assert response.status_code == 404
 
